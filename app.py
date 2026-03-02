@@ -7,19 +7,34 @@ from werkzeug.security import generate_password_hash, check_password_hash
 app = Flask(__name__, template_folder="templates")
 app.secret_key = "mercx_super_secret_key"
 
-# Database config
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///mercx.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+# =========================
+# DATABASE CONFIG (PRODUCTION READY)
+# =========================
+
+database_url = os.environ.get("DATABASE_URL")
+
+if database_url:
+    if database_url.startswith("postgres://"):
+        database_url = database_url.replace("postgres://", "postgresql://", 1)
+    app.config["SQLALCHEMY_DATABASE_URI"] = database_url
+else:
+    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///mercx.db"
+
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db = SQLAlchemy(app)
+
+# =========================
+# LOGIN CONFIG
+# =========================
 
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = "login"
 
-# ========================
-# DATABASE MODEL
-# ========================
+# =========================
+# MODELS
+# =========================
 
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -33,14 +48,14 @@ class Transaction(db.Model):
     seller = db.Column(db.String(100), nullable=False)
     amount = db.Column(db.Float, nullable=False)
     status = db.Column(db.String(50), default="Pending")
-    
+
 @login_manager.user_loader
 def load_user(user_id):
-    return User.query.get(int(user_id))
+    return db.session.get(User, int(user_id))
 
-# ========================
+# =========================
 # ROUTES
-# ========================
+# =========================
 
 @app.route("/")
 def home():
@@ -51,6 +66,10 @@ def register():
     if request.method == "POST":
         username = request.form.get("username")
         password = request.form.get("password")
+
+        if not username or not password:
+            flash("All fields are required")
+            return redirect(url_for("register"))
 
         existing_user = User.query.filter_by(username=username).first()
         if existing_user:
@@ -67,29 +86,7 @@ def register():
         return redirect(url_for("login"))
 
     return render_template("register.html")
-    
-@app.route("/admin")
-@login_required
-def admin_panel():
-    if not current_user.is_admin:
-        return "Access Denied"
 
-    transactions = Transaction.query.all()
-
-    output = "<h2>All Transactions</h2>"
-    for tx in transactions:
-        output += f"""
-        <p>
-        ID: {tx.id} |
-        Buyer: {tx.buyer} |
-        Seller: {tx.seller} |
-        Amount: ₦{tx.amount} |
-        Status: {tx.status}
-        </p>
-        """
-
-    return output
-    
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
@@ -111,7 +108,7 @@ def login():
 @login_required
 def dashboard():
     return f"Welcome {current_user.username} 👑"
-    
+
 @app.route("/create_transaction", methods=["GET", "POST"])
 @login_required
 def create_transaction():
@@ -119,10 +116,18 @@ def create_transaction():
         seller = request.form.get("seller")
         amount = request.form.get("amount")
 
+        if not seller or not amount:
+            return "All fields required"
+
+        try:
+            amount = float(amount)
+        except:
+            return "Invalid amount"
+
         new_tx = Transaction(
             buyer=current_user.username,
             seller=seller,
-            amount=float(amount)
+            amount=amount
         )
 
         db.session.add(new_tx)
@@ -140,27 +145,54 @@ def create_transaction():
     <button type="submit">Create</button>
     </form>
     """
+
+@app.route("/admin")
+@login_required
+def admin_panel():
+    if not current_user.is_admin:
+        return "Access Denied"
+
+    transactions = Transaction.query.all()
+
+    output = "<h2>All Transactions</h2>"
+    for tx in transactions:
+        output += f"""
+        <p>
+        ID: {tx.id} |
+        Buyer: {tx.buyer} |
+        Seller: {tx.seller} |
+        Amount: ₦{tx.amount} |
+        Status: {tx.status}
+        </p>
+        """
+
+    return output
+
 @app.route("/logout")
 @login_required
 def logout():
     logout_user()
     return redirect(url_for("home"))
 
-# ========================
-# RUN
-# ========================
+# =========================
+# CREATE TABLES ON START
+# =========================
+
+with app.app_context():
+    db.create_all()
+
+    # Create default admin
+    admin = User.query.filter_by(username="admin").first()
+    if not admin:
+        hashed_password = generate_password_hash("Mercury@001")
+        admin_user = User(username="admin", password=hashed_password, is_admin=True)
+        db.session.add(admin_user)
+        db.session.commit()
+
+# =========================
+# RUN (FOR LOCAL ONLY)
+# =========================
 
 if __name__ == "__main__":
-    with app.app_context():
-        db.create_all()
-
-        # Create default admin if not exists
-        admin = User.query.filter_by(username="mercx").first()
-        if not admin:
-            hashed_password = generate_password_hash("Mercury@001")
-            admin_user = User(username="admin", password=hashed_password, is_admin=True)
-            db.session.add(admin_user)
-            db.session.commit()
-
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
