@@ -67,7 +67,29 @@ def register():
         return redirect(url_for("login"))
 
     return render_template("register.html")
+    
+@app.route("/admin")
+@login_required
+def admin_panel():
+    if not current_user.is_admin:
+        return "Access Denied"
 
+    transactions = Transaction.query.all()
+
+    output = "<h2>All Transactions</h2>"
+    for tx in transactions:
+        output += f"""
+        <p>
+        ID: {tx.id} |
+        Buyer: {tx.buyer} |
+        Seller: {tx.seller} |
+        Amount: ₦{tx.amount} |
+        Status: {tx.status}
+        </p>
+        """
+
+    return output
+    
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
@@ -89,7 +111,35 @@ def login():
 @login_required
 def dashboard():
     return f"Welcome {current_user.username} 👑"
+    
+@app.route("/create_transaction", methods=["GET", "POST"])
+@login_required
+def create_transaction():
+    if request.method == "POST":
+        seller = request.form.get("seller")
+        amount = request.form.get("amount")
 
+        new_tx = Transaction(
+            buyer=current_user.username,
+            seller=seller,
+            amount=float(amount)
+        )
+
+        db.session.add(new_tx)
+        db.session.commit()
+
+        return "Transaction Created Successfully 🛡"
+
+    return """
+    <h2>Create Transaction</h2>
+    <form method="POST">
+    Seller Username:<br>
+    <input name="seller"><br><br>
+    Amount:<br>
+    <input name="amount"><br><br>
+    <button type="submit">Create</button>
+    </form>
+    """
 @app.route("/logout")
 @login_required
 def logout():
