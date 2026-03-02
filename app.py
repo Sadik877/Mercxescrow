@@ -1,7 +1,9 @@
 import os
+import secrets
 from flask import Flask, render_template, redirect, url_for, request, flash, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+from flask_mail import Mail, Message
 from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__, template_folder="templates")
@@ -28,6 +30,18 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 db = SQLAlchemy(app)
 
 # =========================
+# EMAIL CONFIG
+# =========================
+
+app.config['MAIL_SERVER'] = 'smtp.gmail.com'
+app.config['MAIL_PORT'] = 587
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USERNAME'] = os.environ.get("MAIL_USERNAME")
+app.config['MAIL_PASSWORD'] = os.environ.get("MAIL_PASSWORD")
+
+mail = Mail(app)
+
+# =========================
 # LOGIN CONFIG
 # =========================
 
@@ -42,8 +56,11 @@ login_manager.login_view = "login"
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(100), unique=True, nullable=False)
+    email = db.Column(db.String(150), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
     is_admin = db.Column(db.Boolean, default=False)
+    is_verified = db.Column(db.Boolean, default=False)
+    verification_token = db.Column(db.String(200), nullable=True)
 
 class Transaction(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -63,35 +80,79 @@ def load_user(user_id):
 @app.route("/")
 def home():
     return render_template("index.html")
-app.route("/register
-@app.route('/register', methods=['GET','POST'])
+
+# =========================
+# REGISTER
+# =========================
+
+@app.route("/register", methods=["GET", "POST"])
 def register():
-    if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
-        confirm_password = request.form['confirm_password']
+    if request.method == "POST":
+        username = request.form.get("username")
+        email = request.form.get("email")
+        password = request.form.get("password")
+        confirm_password = request.form.get("confirm_password")
 
         if password != confirm_password:
-            return render_template('register.html', error="Passwords do not match")
+            return render_template("register.html", error="Passwords do not match")
 
-        existing_user = User.query.filter_by(username=username).first()
+        existing_user = User.query.filter(
+            (User.username == username) | (User.email == email)
+        ).first()
+
         if existing_user:
-            return render_template('register.html', error="Username already exists")
+            return render_template("register.html", error="Username or Email already exists")
 
-        new_user = User(username=username, password=password)
+        hashed_password = generate_password_hash(password)
+        token = secrets.token_hex(16)
+
+        new_user = User(
+            username=username,
+            email=email,
+            password=hashed_password,
+            verification_token=token
+        )
+
         db.session.add(new_user)
         db.session.commit()
 
-        return redirect('/login')
+        # Send verification email
+        verify_link = url_for("verify_email", token=token, _external=True)
 
-    return render_template('register.html')
-@app.route('/terms')
-def terms():
-    return render_template('terms.html')
+        msg = Message(
+            "Verify Your MERCX Account",
+            sender=app.config["MAIL_USERNAME"],
+            recipients=[email]
+        )
+        msg.body = f"Click the link to verify your account:\n{verify_link}"
 
-@app.route('/privacy')
-def privacy():
-    return render_template('privacy.html')
+        mail.send(msg)
+
+        return "Check your email to verify your account."
+
+    return render_template("register.html")
+
+# =========================
+# EMAIL VERIFY
+# =========================
+
+@app.route("/verify/<token>")
+def verify_email(token):
+    user = User.query.filter_by(verification_token=token).first()
+
+    if not user:
+        return "Invalid or expired verification link"
+
+    user.is_verified = True
+    user.verification_token = None
+    db.session.commit()
+
+    return "Your account has been verified. You can now login."
+
+# =========================
+# LOGIN
+# =========================
+
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
@@ -101,13 +162,20 @@ def login():
         user = User.query.filter_by(username=username).first()
 
         if user and check_password_hash(user.password, password):
+
+            if not user.is_verified:
+                return render_template("login.html", error="Please verify your email first.")
+
             login_user(user)
             return redirect(url_for("dashboard"))
-        else:
-            flash("Invalid credentials")
-            return redirect(url_for("login"))
+
+        return render_template("login.html", error="Invalid credentials")
 
     return render_template("login.html")
+
+# =========================
+# DASHBOARD
+# =========================
 
 @app.route("/dashboard")
 @login_required
@@ -123,91 +191,8 @@ def dashboard():
     )
 
 # =========================
-# 🔥 REAL-TIME API
+# LOGOUT
 # =========================
-
-@app.route("/api/transactions")
-@login_required
-def api_transactions():
-    transactions = Transaction.query.filter_by(buyer=current_user.username).all()
-
-    data = []
-    for tx in transactions:
-        data.append({
-            "id": tx.id,
-            "seller": tx.seller,
-            "amount": tx.amount,
-            "status": tx.status
-        })
-
-    return jsonify(data)
-
-# =========================
-# CREATE TRANSACTION
-# =========================
-
-@app.route("/create_transaction", methods=["GET", "POST"])
-@login_required
-def create_transaction():
-    if request.method == "POST":
-        seller = request.form.get("seller")
-        amount = request.form.get("amount")
-
-        if not seller or not amount:
-            return "All fields required"
-
-        try:
-            amount = float(amount)
-        except:
-            return "Invalid amount"
-
-        new_tx = Transaction(
-            buyer=current_user.username,
-            seller=seller,
-            amount=amount
-        )
-
-        db.session.add(new_tx)
-        db.session.commit()
-
-        return redirect(url_for("dashboard"))
-
-    return """
-    <h2>Create Transaction</h2>
-    <form method="POST">
-    Seller Username:<br>
-    <input name="seller"><br><br>
-    Amount:<br>
-    <input name="amount"><br><br>
-    <button type="submit">Create</button>
-    </form>
-    """
-
-# =========================
-# ADMIN PANEL
-# =========================
-
-@app.route("/admin")
-@login_required
-def admin_panel():
-    if not current_user.is_admin:
-        return "Access Denied"
-
-    transactions = Transaction.query.all()
-
-    output = "<h2>All Transactions</h2>"
-    for tx in transactions:
-        output += f"""
-        <p>
-        ID: {tx.id} |
-        Buyer: {tx.buyer} |
-        Seller: {tx.seller} |
-        Amount: ₦{tx.amount} |
-        Status: {tx.status}
-        </p>
-        """
-
-    return output
 
 @app.route("/logout")
 @login_required
@@ -225,7 +210,13 @@ with app.app_context():
     admin = User.query.filter_by(username="admin").first()
     if not admin:
         hashed_password = generate_password_hash("Mercury@001")
-        admin_user = User(username="admin", password=hashed_password, is_admin=True)
+        admin_user = User(
+            username="admin",
+            email="admin@mercx.site",
+            password=hashed_password,
+            is_admin=True,
+            is_verified=True
+        )
         db.session.add(admin_user)
         db.session.commit()
 
