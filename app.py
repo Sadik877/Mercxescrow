@@ -63,33 +63,35 @@ def load_user(user_id):
 @app.route("/")
 def home():
     return render_template("index.html")
-
-@app.route("/register", methods=["GET", "POST"])
+app.route("/register
+@app.route('/register', methods=['GET','POST'])
 def register():
-    if request.method == "POST":
-        username = request.form.get("username")
-        password = request.form.get("password")
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        confirm_password = request.form['confirm_password']
 
-        if not username or not password:
-            flash("All fields are required")
-            return redirect(url_for("register"))
+        if password != confirm_password:
+            return render_template('register.html', error="Passwords do not match")
 
         existing_user = User.query.filter_by(username=username).first()
         if existing_user:
-            flash("Username already exists")
-            return redirect(url_for("register"))
+            return render_template('register.html', error="Username already exists")
 
-        hashed_password = generate_password_hash(password)
-        new_user = User(username=username, password=hashed_password)
-
+        new_user = User(username=username, password=password)
         db.session.add(new_user)
         db.session.commit()
 
-        flash("Registration successful. Please login.")
-        return redirect(url_for("login"))
+        return redirect('/login')
 
-    return render_template("register.html")
+    return render_template('register.html')
+@app.route('/terms')
+def terms():
+    return render_template('terms.html')
 
+@app.route('/privacy')
+def privacy():
+    return render_template('privacy.html')
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
