@@ -24,6 +24,10 @@ else:
     app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///mercx.db"
 
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+# ✅ THIS WAS MISSING
+db = SQLAlchemy(app)
+
 # =========================
 # LOGIN CONFIG
 # =========================
@@ -175,13 +179,12 @@ def logout():
     return redirect(url_for("home"))
 
 # =========================
-# CREATE TABLES ON START
+# CREATE TABLES
 # =========================
 
 with app.app_context():
     db.create_all()
 
-    # Create default admin
     admin = User.query.filter_by(username="admin").first()
     if not admin:
         hashed_password = generate_password_hash("Mercury@001")
@@ -190,9 +193,9 @@ with app.app_context():
         db.session.commit()
 
 # =========================
-# RUN (FOR LOCAL ONLY)
+# RUN LOCAL
 # =========================
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=port
