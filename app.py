@@ -5,8 +5,7 @@ from flask_login import LoginManager, UserMixin, login_user, login_required, log
 from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__, template_folder="templates")
-app.secret_key = "mercx_super_secret_key"
-
+app.secret_key = os.environ.get("SECRET_KEY", "fallback_secret")
 # =========================
 # DATABASE CONFIG
 # =========================
