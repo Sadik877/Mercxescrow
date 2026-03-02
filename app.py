@@ -5,7 +5,13 @@ from flask_sqlalchemy import SQLAlchemy
 app = Flask(__name__)
 app.secret_key = "mercx_secret_key"
 
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///mercx.db'
+import os
+database_url = os.environ.get("DATABASE_URL")
+
+if database_url:
+    app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+else:
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///mercx.db'
 db = SQLAlchemy(app)
 
 class User(db.Model):
