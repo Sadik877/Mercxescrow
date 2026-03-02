@@ -1,11 +1,12 @@
 import os
-from flask import Flask, render_template, redirect, url_for, request, flash
+from flask import Flask, render_template, redirect, url_for, request, flash, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__, template_folder="templates")
 app.secret_key = os.environ.get("SECRET_KEY", "fallback_secret")
+
 # =========================
 # DATABASE CONFIG
 # =========================
@@ -24,7 +25,6 @@ else:
 
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
-# ✅ THIS WAS MISSING
 db = SQLAlchemy(app)
 
 # =========================
@@ -120,6 +120,30 @@ def dashboard():
         total_amount=total_amount
     )
 
+# =========================
+# 🔥 REAL-TIME API
+# =========================
+
+@app.route("/api/transactions")
+@login_required
+def api_transactions():
+    transactions = Transaction.query.filter_by(buyer=current_user.username).all()
+
+    data = []
+    for tx in transactions:
+        data.append({
+            "id": tx.id,
+            "seller": tx.seller,
+            "amount": tx.amount,
+            "status": tx.status
+        })
+
+    return jsonify(data)
+
+# =========================
+# CREATE TRANSACTION
+# =========================
+
 @app.route("/create_transaction", methods=["GET", "POST"])
 @login_required
 def create_transaction():
@@ -144,7 +168,7 @@ def create_transaction():
         db.session.add(new_tx)
         db.session.commit()
 
-        return "Transaction Created Successfully 🛡"
+        return redirect(url_for("dashboard"))
 
     return """
     <h2>Create Transaction</h2>
@@ -156,6 +180,10 @@ def create_transaction():
     <button type="submit">Create</button>
     </form>
     """
+
+# =========================
+# ADMIN PANEL
+# =========================
 
 @app.route("/admin")
 @login_required
