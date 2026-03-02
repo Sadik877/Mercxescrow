@@ -80,7 +80,11 @@ def load_user(user_id):
 @app.route("/")
 def home():
     return render_template("index.html")
-
+    
+@app.route("/initdb")
+def initdb():
+    db.create_all()
+    return "Database tables created!"
 # =========================
 # REGISTER
 # =========================
