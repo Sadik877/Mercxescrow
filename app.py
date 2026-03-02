@@ -110,7 +110,15 @@ def login():
 @app.route("/dashboard")
 @login_required
 def dashboard():
-    return f"Welcome {current_user.username} 👑"
+    transactions = Transaction.query.filter_by(buyer=current_user.username).all()
+    total_amount = sum(tx.amount for tx in transactions)
+
+    return render_template(
+        "dashboard.html",
+        user=current_user,
+        transactions=transactions,
+        total_amount=total_amount
+    )
 
 @app.route("/create_transaction", methods=["GET", "POST"])
 @login_required
