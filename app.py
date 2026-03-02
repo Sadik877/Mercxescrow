@@ -104,5 +104,13 @@ if __name__ == "__main__":
     with app.app_context():
         db.create_all()
 
+        # Create default admin if not exists
+        admin = User.query.filter_by(username="mercx").first()
+        if not admin:
+            hashed_password = generate_password_hash("Mercury@001")
+            admin_user = User(username="admin", password=hashed_password, is_admin=True)
+            db.session.add(admin_user)
+            db.session.commit()
+
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
