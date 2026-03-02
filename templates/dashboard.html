@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dashboard - MERCX</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100">
+
+<div class="max-w-5xl mx-auto mt-10">
+
+    <!-- Header -->
+    <div class="bg-white shadow-lg rounded-xl p-6 flex justify-between items-center">
+        <div>
+            <h1 class="text-2xl font-bold">Welcome, {{ user.username }} 👑</h1>
+            <p class="text-gray-500">Your MERCX Dashboard</p>
+        </div>
+        <a href="/logout" class="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600">
+            Logout
+        </a>
+    </div>
+
+    <!-- Stats -->
+    <div class="grid grid-cols-2 gap-6 mt-6">
+        <div class="bg-white p-6 rounded-xl shadow">
+            <h2 class="text-gray-500">Total Transactions</h2>
+            <p class="text-3xl font-bold">{{ transactions|length }}</p>
+        </div>
+
+        <div class="bg-white p-6 rounded-xl shadow">
+            <h2 class="text-gray-500">Total Amount</h2>
+            <p class="text-3xl font-bold text-green-600">₦{{ total_amount }}</p>
+        </div>
+    </div>
+
+    <!-- Create Button -->
+    <div class="mt-6">
+        <a href="/create_transaction" 
+           class="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700">
+           ➕ Create Transaction
+        </a>
+    </div>
+
+    <!-- Transactions List -->
+    <div class="bg-white shadow-lg rounded-xl p-6 mt-6">
+        <h2 class="text-xl font-bold mb-4">Your Transactions</h2>
+
+        {% if transactions %}
+            <table class="w-full border-collapse">
+                <thead>
+                    <tr class="bg-gray-200">
+                        <th class="p-2 text-left">Seller</th>
+                        <th class="p-2 text-left">Amount</th>
+                        <th class="p-2 text-left">Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for tx in transactions %}
+                    <tr class="border-b">
+                        <td class="p-2">{{ tx.seller }}</td>
+                        <td class="p-2">₦{{ tx.amount }}</td>
+                        <td class="p-2">
+                            <span class="px-3 py-1 rounded-full 
+                            {% if tx.status == 'Pending' %}
+                                bg-yellow-200 text-yellow-800
+                            {% else %}
+                                bg-green-200 text-green-800
+                            {% endif %}">
+                                {{ tx.status }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p class="text-gray-500">No transactions yet.</p>
+        {% endif %}
+    </div>
+
+</div>
+
+</body>
+      </html>
