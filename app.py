@@ -27,6 +27,13 @@ class User(UserMixin, db.Model):
     password = db.Column(db.String(200), nullable=False)
     is_admin = db.Column(db.Boolean, default=False)
 
+class Transaction(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    buyer = db.Column(db.String(100), nullable=False)
+    seller = db.Column(db.String(100), nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+    status = db.Column(db.String(50), default="Pending")
+    
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
