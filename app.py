@@ -1,16 +1,20 @@
 import os
 import secrets
-from flask import Flask, render_template, redirect, url_for, request, flash, jsonify
+from flask import Flask, render_template, redirect, url_for, request
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from flask_mail import Mail, Message
 from werkzeug.security import generate_password_hash, check_password_hash
 
-app = Flask(__name__, template_folder="templates")
-app.secret_key = os.environ.get("SECRET_KEY", "fallback_secret")
+# =========================
+# APP CONFIG
+# =========================
+
+app = Flask(__name__)
+app.secret_key = os.environ.get("SECRET_KEY", "supersecretkey")
 
 # =========================
-# DATABASE CONFIG
+# DATABASE CONFIG (FIXED)
 # =========================
 
 database_url = os.environ.get("DATABASE_URL")
@@ -20,6 +24,10 @@ if database_url:
         database_url = database_url.replace("postgres://", "postgresql+psycopg://", 1)
     elif database_url.startswith("postgresql://"):
         database_url = database_url.replace("postgresql://", "postgresql+psycopg://", 1)
+
+    # Force SSL (Render requires it)
+    if "sslmode" not in database_url:
+        database_url += "?sslmode=require"
 
     app.config["SQLALCHEMY_DATABASE_URI"] = database_url
 else:
@@ -80,11 +88,7 @@ def load_user(user_id):
 @app.route("/")
 def home():
     return render_template("index.html")
-    
-@app.route("/initdb")
-def initdb():
-    db.create_all()
-    return "Database tables created!"
+
 # =========================
 # REGISTER
 # =========================
@@ -120,24 +124,23 @@ def register():
         db.session.add(new_user)
         db.session.commit()
 
-        # Send verification email
         verify_link = url_for("verify_email", token=token, _external=True)
 
-        msg = Message(
-            "Verify Your MERCX Account",
-            sender=app.config["MAIL_USERNAME"],
-            recipients=[email]
-        )
-        msg.body = f"Click the link to verify your account:\n{verify_link}"
-
-        mail.send(msg)
+        if app.config["MAIL_USERNAME"] and app.config["MAIL_PASSWORD"]:
+            msg = Message(
+                "Verify Your MERCX Account",
+                sender=app.config["MAIL_USERNAME"],
+                recipients=[email]
+            )
+            msg.body = f"Click this link to verify your account:\n{verify_link}"
+            mail.send(msg)
 
         return "Check your email to verify your account."
 
     return render_template("register.html")
 
 # =========================
-# EMAIL VERIFY
+# VERIFY EMAIL
 # =========================
 
 @app.route("/verify/<token>")
@@ -145,13 +148,13 @@ def verify_email(token):
     user = User.query.filter_by(verification_token=token).first()
 
     if not user:
-        return "Invalid or expired verification link"
+        return "Invalid or expired link"
 
     user.is_verified = True
     user.verification_token = None
     db.session.commit()
 
-    return "Your account has been verified. You can now login."
+    return redirect(url_for("login"))
 
 # =========================
 # LOGIN
@@ -205,7 +208,7 @@ def logout():
     return redirect(url_for("home"))
 
 # =========================
-# CREATE TABLES
+# CREATE TABLES + ADMIN AUTO CREATE
 # =========================
 
 with app.app_context():
