@@ -1,7 +1,7 @@
 import os
 import pyotp
 from datetime import datetime
-from flask import Flask, render_template, redirect, url_for, request, session, flash
+from flask import Flask, render_template, redirect, url_for, request, session
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -20,19 +20,22 @@ app.config["SECURITY_PASSWORD_SALT"] = "mercx_salt"
 Talisman(app)
 
 # =========================
-# DATABASE CONFIG
+# DATABASE CONFIG (FIXED)
 # =========================
 
 database_url = os.environ.get("DATABASE_URL")
 
 if database_url:
+    # Render sometimes gives postgres://
     if database_url.startswith("postgres://"):
-        database_url = database_url.replace("postgres://", "postgresql+psycopg://", 1)
-    elif database_url.startswith("postgresql://"):
-        database_url = database_url.replace("postgresql://", "postgresql+psycopg://", 1)
+        database_url = database_url.replace("postgres://", "postgresql://", 1)
 
+    # Force SSL
     if "sslmode=" not in database_url:
-        database_url += "?sslmode=require"
+        if "?" in database_url:
+            database_url += "&sslmode=require"
+        else:
+            database_url += "?sslmode=require"
 
     app.config["SQLALCHEMY_DATABASE_URI"] = database_url
 else:
@@ -99,9 +102,9 @@ def confirm_reset_token(token, expiration=3600):
             salt=app.config["SECURITY_PASSWORD_SALT"],
             max_age=expiration
         )
+        return email
     except Exception:
         return None
-    return email
 
 # =========================
 # ROUTES
@@ -228,6 +231,7 @@ def forgot():
 @app.route("/reset/<token>", methods=["GET", "POST"])
 def reset_password(token):
     email = confirm_reset_token(token)
+
     if not email:
         return "Invalid or expired token"
 
@@ -270,4 +274,4 @@ with app.app_context():
 # =========================
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run()
