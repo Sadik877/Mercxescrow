@@ -116,7 +116,14 @@ def register():
         return "Account created successfully. Contact admin to verify."
 
     return render_template("register.html")
+    
+@app.route("/terms")
+def terms():
+    return render_template("terms.html")
 
+@app.route("/privacy")
+def privacy():
+    return render_template("privacy.html")
 # =========================
 # LOGIN
 # =========================
