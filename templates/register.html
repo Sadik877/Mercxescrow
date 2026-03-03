@@ -1,92 +1,90 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
     <title>Register - MERCX</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <style>
-        body{
-            font-family: Arial, sans-serif;
-            background: linear-gradient(135deg,#0f2027,#203a43,#2c5364);
-            display:flex;
-            justify-content:center;
-            align-items:center;
-            height:100vh;
-        }
-        .card{
-            background:white;
-            padding:30px;
-            border-radius:10px;
-            width:100%;
-            max-width:400px;
-            box-shadow:0 10px 25px rgba(0,0,0,0.3);
-        }
-        h2{
-            text-align:center;
-            margin-bottom:20px;
-        }
-        input{
-            width:100%;
-            padding:12px;
-            margin:8px 0;
-            border-radius:5px;
-            border:1px solid #ccc;
-        }
-        button{
-            width:100%;
-            padding:12px;
-            background:#2c5364;
-            color:white;
-            border:none;
-            border-radius:5px;
-            cursor:pointer;
-        }
-        button:hover{
-            background:#203a43;
-        }
-        .terms{
-            font-size:13px;
-        }
-        .terms a{
-            color:#2c5364;
-            text-decoration:none;
-        }
-        .error{
-            color:red;
-            font-size:14px;
-            text-align:center;
-        }
-    </style>
+    <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
 
-<div class="card">
-    <h2>Create Account</h2>
+<body class="bg-gradient-to-br from-black via-gray-900 to-blue-900 min-h-screen flex items-center justify-center px-4">
+
+<div class="bg-white w-full max-w-md p-8 rounded-2xl shadow-2xl">
+
+    <!-- LOGO -->
+    <div class="flex justify-center mb-6">
+        <img src="{{ url_for('static', filename='logo.png') }}" alt="MERCX Logo" class="h-16">
+    </div>
+
+    <h2 class="text-2xl font-bold text-center mb-6 text-gray-800">Create Your Account</h2>
 
     {% if error %}
-        <p class="error">{{ error }}</p>
+        <div class="bg-red-100 text-red-700 p-3 rounded mb-4 text-sm text-center">
+            {{ error }}
+        </div>
     {% endif %}
 
-    <form method="POST">
-        <input type="text" name="username" placeholder="Username" required>
-        
-        <input type="password" name="password" placeholder="Password" required>
+    <form method="POST" class="space-y-4">
 
-        <input type="password" name="confirm_password" placeholder="Confirm Password" required>
+        <input type="text" name="username" placeholder="Username"
+               class="w-full border rounded-lg px-4 py-3 focus:ring-2 focus:ring-green-500 outline-none"
+               required>
 
-        <div class="terms">
-            <input type="checkbox" name="agree" required>
-            I agree to the 
-            <a href="/terms">Terms & Conditions</a> and 
-            <a href="/privacy">Privacy Policy</a>
+        <input type="email" name="email" placeholder="Email Address"
+               class="w-full border rounded-lg px-4 py-3 focus:ring-2 focus:ring-green-500 outline-none"
+               required>
+
+        <!-- PASSWORD -->
+        <div class="relative">
+            <input type="password" name="password" id="password"
+                   placeholder="Password"
+                   class="w-full border rounded-lg px-4 py-3 focus:ring-2 focus:ring-green-500 outline-none"
+                   required>
+            <span onclick="togglePassword()"
+                  class="absolute right-4 top-3 cursor-pointer text-gray-500 text-sm">
+                  Show
+            </span>
         </div>
 
-        <button type="submit">Register</button>
+        <input type="password" name="confirm_password"
+               placeholder="Confirm Password"
+               class="w-full border rounded-lg px-4 py-3 focus:ring-2 focus:ring-green-500 outline-none"
+               required>
+
+        <!-- TERMS -->
+        <div class="text-sm">
+            <label class="flex items-center">
+                <input type="checkbox" name="agree" required class="mr-2">
+                I agree to the
+                <a href="/terms" class="text-green-600 ml-1 hover:underline">Terms</a>
+                &
+                <a href="/privacy" class="text-green-600 ml-1 hover:underline">Privacy Policy</a>
+            </label>
+        </div>
+
+        <button type="submit"
+                class="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition">
+            Create Account
+        </button>
     </form>
 
-    <p style="text-align:center;margin-top:10px;">
-        Already have account? <a href="/login">Login</a>
+    <p class="text-center text-sm mt-6">
+        Already have an account?
+        <a href="/login" class="text-green-600 font-semibold hover:underline">Login</a>
     </p>
+
 </div>
 
+<script>
+function togglePassword() {
+    var pass = document.getElementById("password");
+    if (pass.type === "password") {
+        pass.type = "text";
+    } else {
+        pass.type = "password";
+    }
+}
+</script>
+
 </body>
-  </html>
+</html>
