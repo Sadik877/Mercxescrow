@@ -1,8 +1,12 @@
 import os
-from flask import Flask, render_template, redirect, url_for, request
+import pyotp
+from datetime import datetime
+from flask import Flask, render_template, redirect, url_for, request, session
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
+from itsdangerous import URLSafeTimedSerializer
+from flask_talisman import Talisman
 
 # =========================
 # APP CONFIG
@@ -10,9 +14,12 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "supersecretkey")
+app.config["SECURITY_PASSWORD_SALT"] = "mercx_salt"
+
+Talisman(app)  # Security headers
 
 # =========================
-# DATABASE CONFIG (RENDER SAFE)
+# DATABASE CONFIG
 # =========================
 
 database_url = os.environ.get("DATABASE_URL")
@@ -24,17 +31,13 @@ if database_url:
         database_url = database_url.replace("postgresql://", "postgresql+psycopg://", 1)
 
     if "sslmode=" not in database_url:
-        if "?" in database_url:
-            database_url += "&sslmode=require"
-        else:
-            database_url += "?sslmode=require"
+        database_url += "?sslmode=require"
 
     app.config["SQLALCHEMY_DATABASE_URI"] = database_url
 else:
     app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///mercx.db"
 
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-
 db = SQLAlchemy(app)
 
 # =========================
@@ -45,33 +48,57 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = "login"
 
+serializer = URLSafeTimedSerializer(app.config["SECRET_KEY"])
+
 # =========================
 # MODELS
 # =========================
 
 class User(UserMixin, db.Model):
-    __tablename__ = "user"
-
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(100), unique=True, nullable=False)
     email = db.Column(db.String(150), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
     is_admin = db.Column(db.Boolean, default=False)
+    otp_secret = db.Column(db.String(16), default=pyotp.random_base32())
 
 class Transaction(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     buyer = db.Column(db.String(100), nullable=False)
     seller = db.Column(db.String(100), nullable=False)
     amount = db.Column(db.Float, nullable=False)
-
     status = db.Column(db.String(50), default="Created")
     buyer_paid = db.Column(db.Boolean, default=False)
     seller_confirmed = db.Column(db.Boolean, default=False)
     released = db.Column(db.Boolean, default=False)
 
+class LoginActivity(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(100))
+    ip_address = db.Column(db.String(100))
+    date = db.Column(db.DateTime, default=datetime.utcnow)
+
 @login_manager.user_loader
 def load_user(user_id):
     return db.session.get(User, int(user_id))
+
+# =========================
+# PASSWORD RESET
+# =========================
+
+def generate_reset_token(email):
+    return serializer.dumps(email, salt=app.config["SECURITY_PASSWORD_SALT"])
+
+def confirm_reset_token(token, expiration=3600):
+    try:
+        email = serializer.loads(
+            token,
+            salt=app.config["SECURITY_PASSWORD_SALT"],
+            max_age=expiration
+        )
+    except:
+        return None
+    return email
 
 # =========================
 # ROUTES
@@ -81,31 +108,16 @@ def load_user(user_id):
 def home():
     return render_template("index.html")
 
-@app.route("/terms")
-def terms():
-    return render_template("terms.html")
-
-@app.route("/privacy")
-def privacy():
-    return render_template("privacy.html")
-
-# =========================
 # REGISTER
-# =========================
-
 @app.route("/register", methods=["GET", "POST"])
 def register():
     if request.method == "POST":
         username = request.form.get("username")
         email = request.form.get("email")
         password = request.form.get("password")
-        confirm_password = request.form.get("confirm_password")
-
-        if password != confirm_password:
-            return render_template("register.html", error="Passwords do not match")
 
         if User.query.filter((User.username == username) | (User.email == email)).first():
-            return render_template("register.html", error="Username or Email already exists")
+            return render_template("register.html", error="User exists")
 
         new_user = User(
             username=username,
@@ -115,15 +127,11 @@ def register():
 
         db.session.add(new_user)
         db.session.commit()
-
         return redirect(url_for("login"))
 
     return render_template("register.html")
 
-# =========================
-# LOGIN
-# =========================
-
+# LOGIN WITH OTP STEP 1
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
@@ -133,17 +141,45 @@ def login():
         user = User.query.filter_by(username=username).first()
 
         if user and check_password_hash(user.password, password):
-            login_user(user)
-            return redirect(url_for("dashboard"))
+            session["pre_2fa_user"] = user.id
+            return redirect(url_for("verify_otp"))
 
         return render_template("login.html", error="Invalid credentials")
 
     return render_template("login.html")
 
-# =========================
-# DASHBOARD
-# =========================
+# OTP VERIFY
+@app.route("/verify-otp", methods=["GET", "POST"])
+def verify_otp():
+    user_id = session.get("pre_2fa_user")
+    if not user_id:
+        return redirect(url_for("login"))
 
+    user = User.query.get(user_id)
+    totp = pyotp.TOTP(user.otp_secret)
+
+    if request.method == "POST":
+        otp = request.form.get("otp")
+
+        if totp.verify(otp):
+            login_user(user)
+            session.pop("pre_2fa_user", None)
+
+            # Save login activity
+            activity = LoginActivity(
+                username=user.username,
+                ip_address=request.remote_addr
+            )
+            db.session.add(activity)
+            db.session.commit()
+
+            return redirect(url_for("dashboard"))
+
+        return render_template("verify.html", error="Invalid OTP")
+
+    return render_template("verify.html")
+
+# DASHBOARD
 @app.route("/dashboard")
 @login_required
 def dashboard():
@@ -152,88 +188,41 @@ def dashboard():
         (Transaction.seller == current_user.username)
     ).all()
 
-    return render_template(
-        "dashboard.html",
-        user=current_user,
-        transactions=transactions
-    )
+    return render_template("dashboard.html", user=current_user, transactions=transactions)
 
-# =========================
-# CREATE TRANSACTION
-# =========================
-
-@app.route("/create", methods=["GET", "POST"])
-@login_required
-def create_transaction():
+# PASSWORD RESET REQUEST
+@app.route("/forgot", methods=["GET", "POST"])
+def forgot():
     if request.method == "POST":
-        seller = request.form.get("seller")
-        amount = float(request.form.get("amount"))
+        email = request.form.get("email")
+        user = User.query.filter_by(email=email).first()
 
-        new_tx = Transaction(
-            buyer=current_user.username,
-            seller=seller,
-            amount=amount
-        )
+        if user:
+            token = generate_reset_token(user.email)
+            reset_link = url_for("reset_password", token=token, _external=True)
+            print("RESET LINK:", reset_link)  # for testing
 
-        db.session.add(new_tx)
+        return render_template("forgot.html", message="If email exists, reset link sent.")
+
+    return render_template("forgot.html")
+
+# RESET PASSWORD
+@app.route("/reset/<token>", methods=["GET", "POST"])
+def reset_password(token):
+    email = confirm_reset_token(token)
+    if not email:
+        return "Invalid or expired token"
+
+    if request.method == "POST":
+        new_password = request.form.get("password")
+        user = User.query.filter_by(email=email).first()
+        user.password = generate_password_hash(new_password)
         db.session.commit()
+        return redirect(url_for("login"))
 
-        return redirect(url_for("dashboard"))
+    return render_template("reset.html")
 
-    return render_template("create.html")
-
-# =========================
-# MARK AS PAID (BUYER)
-# =========================
-
-@app.route("/pay/<int:tx_id>")
-@login_required
-def mark_paid(tx_id):
-    tx = Transaction.query.get_or_404(tx_id)
-
-    if tx.buyer == current_user.username and not tx.buyer_paid:
-        tx.buyer_paid = True
-        tx.status = "Paid"
-        db.session.commit()
-
-    return redirect(url_for("dashboard"))
-
-# =========================
-# CONFIRM DELIVERY (SELLER)
-# =========================
-
-@app.route("/confirm/<int:tx_id>")
-@login_required
-def confirm_delivery(tx_id):
-    tx = Transaction.query.get_or_404(tx_id)
-
-    if tx.seller == current_user.username and tx.buyer_paid:
-        tx.seller_confirmed = True
-        tx.status = "Delivered"
-        db.session.commit()
-
-    return redirect(url_for("dashboard"))
-
-# =========================
-# RELEASE FUNDS (ADMIN)
-# =========================
-
-@app.route("/release/<int:tx_id>")
-@login_required
-def release_funds(tx_id):
-    tx = Transaction.query.get_or_404(tx_id)
-
-    if current_user.is_admin and tx.seller_confirmed:
-        tx.released = True
-        tx.status = "Released"
-        db.session.commit()
-
-    return redirect(url_for("dashboard"))
-
-# =========================
 # LOGOUT
-# =========================
-
 @app.route("/logout")
 @login_required
 def logout():
@@ -256,3 +245,6 @@ with app.app_context():
         )
         db.session.add(admin_user)
         db.session.commit()
+
+if __name__ == "__main__":
+    app.run(debug=True)
