@@ -1,5 +1,4 @@
 import os
-import secrets
 from flask import Flask, render_template, redirect, url_for, request
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
@@ -51,20 +50,24 @@ login_manager.login_view = "login"
 # =========================
 
 class User(UserMixin, db.Model):
+    __tablename__ = "user"
+
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(100), unique=True, nullable=False)
     email = db.Column(db.String(150), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
     is_admin = db.Column(db.Boolean, default=False)
-    is_verified = db.Column(db.Boolean, default=False)
-    verification_token = db.Column(db.String(200), nullable=True)
 
 class Transaction(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     buyer = db.Column(db.String(100), nullable=False)
     seller = db.Column(db.String(100), nullable=False)
     amount = db.Column(db.Float, nullable=False)
-    status = db.Column(db.String(50), default="Pending")
+
+    status = db.Column(db.String(50), default="Created")
+    buyer_paid = db.Column(db.Boolean, default=False)
+    seller_confirmed = db.Column(db.Boolean, default=False)
+    released = db.Column(db.Boolean, default=False)
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -77,6 +80,14 @@ def load_user(user_id):
 @app.route("/")
 def home():
     return render_template("index.html")
+
+@app.route("/terms")
+def terms():
+    return render_template("terms.html")
+
+@app.route("/privacy")
+def privacy():
+    return render_template("privacy.html")
 
 # =========================
 # REGISTER
@@ -93,37 +104,22 @@ def register():
         if password != confirm_password:
             return render_template("register.html", error="Passwords do not match")
 
-        existing_user = User.query.filter(
-            (User.username == username) | (User.email == email)
-        ).first()
-
-        if existing_user:
+        if User.query.filter((User.username == username) | (User.email == email)).first():
             return render_template("register.html", error="Username or Email already exists")
-
-        hashed_password = generate_password_hash(password)
-        token = secrets.token_hex(16)
 
         new_user = User(
             username=username,
             email=email,
-            password=hashed_password,
-            verification_token=token
+            password=generate_password_hash(password)
         )
 
         db.session.add(new_user)
         db.session.commit()
 
-        return "Account created successfully. Contact admin to verify."
+        return redirect(url_for("login"))
 
     return render_template("register.html")
-    
-@app.route("/terms")
-def terms():
-    return render_template("terms.html")
 
-@app.route("/privacy")
-def privacy():
-    return render_template("privacy.html")
 # =========================
 # LOGIN
 # =========================
@@ -151,15 +147,88 @@ def login():
 @app.route("/dashboard")
 @login_required
 def dashboard():
-    transactions = Transaction.query.filter_by(buyer=current_user.username).all()
-    total_amount = sum(tx.amount for tx in transactions)
+    transactions = Transaction.query.filter(
+        (Transaction.buyer == current_user.username) |
+        (Transaction.seller == current_user.username)
+    ).all()
 
     return render_template(
         "dashboard.html",
         user=current_user,
-        transactions=transactions,
-        total_amount=total_amount
+        transactions=transactions
     )
+
+# =========================
+# CREATE TRANSACTION
+# =========================
+
+@app.route("/create", methods=["GET", "POST"])
+@login_required
+def create_transaction():
+    if request.method == "POST":
+        seller = request.form.get("seller")
+        amount = float(request.form.get("amount"))
+
+        new_tx = Transaction(
+            buyer=current_user.username,
+            seller=seller,
+            amount=amount
+        )
+
+        db.session.add(new_tx)
+        db.session.commit()
+
+        return redirect(url_for("dashboard"))
+
+    return render_template("create.html")
+
+# =========================
+# MARK AS PAID (BUYER)
+# =========================
+
+@app.route("/pay/<int:tx_id>")
+@login_required
+def mark_paid(tx_id):
+    tx = Transaction.query.get_or_404(tx_id)
+
+    if tx.buyer == current_user.username and not tx.buyer_paid:
+        tx.buyer_paid = True
+        tx.status = "Paid"
+        db.session.commit()
+
+    return redirect(url_for("dashboard"))
+
+# =========================
+# CONFIRM DELIVERY (SELLER)
+# =========================
+
+@app.route("/confirm/<int:tx_id>")
+@login_required
+def confirm_delivery(tx_id):
+    tx = Transaction.query.get_or_404(tx_id)
+
+    if tx.seller == current_user.username and tx.buyer_paid:
+        tx.seller_confirmed = True
+        tx.status = "Delivered"
+        db.session.commit()
+
+    return redirect(url_for("dashboard"))
+
+# =========================
+# RELEASE FUNDS (ADMIN)
+# =========================
+
+@app.route("/release/<int:tx_id>")
+@login_required
+def release_funds(tx_id):
+    tx = Transaction.query.get_or_404(tx_id)
+
+    if current_user.is_admin and tx.seller_confirmed:
+        tx.released = True
+        tx.status = "Released"
+        db.session.commit()
+
+    return redirect(url_for("dashboard"))
 
 # =========================
 # LOGOUT
@@ -172,7 +241,7 @@ def logout():
     return redirect(url_for("home"))
 
 # =========================
-# CREATE TABLES + ADMIN AUTO CREATE
+# INITIAL SETUP
 # =========================
 
 with app.app_context():
@@ -183,14 +252,7 @@ with app.app_context():
             username="admin",
             email="admin@mercx.site",
             password=generate_password_hash("Mercury@001"),
-            is_admin=True,
-            is_verified=True
+            is_admin=True
         )
         db.session.add(admin_user)
         db.session.commit()
-
-# =========================
-# IMPORTANT FOR GUNICORN
-# =========================
-
-# DO NOT use app.run() in production
