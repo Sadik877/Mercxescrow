@@ -1,47 +1,119 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>MERCX Escrow</title>
+    <meta charset="UTF-8">
+    <title>MERCX Escrow - Secure Digital Transactions</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-100">
 
-<nav class="bg-black p-4 text-white flex justify-between">
-    <h1 class="font-bold text-xl">MERCX</h1>
-    <div>
-        <a href="/login" class="mr-4 hover:text-green-400">Login</a>
-        <a href="/register" class="mr-4 hover:text-green-400">Register</a>
-        <a href="/terms" class="mr-4">Terms</a>
-        <a href="/privacy">Privacy</a>
+<body class="bg-gray-100 font-sans">
+
+<!-- NAVBAR -->
+<nav class="bg-black p-4 text-white flex justify-between items-center shadow-lg">
+    <h1 class="font-bold text-2xl text-green-400">MERCX</h1>
+    <div class="space-x-4">
+        <a href="/login" class="hover:text-green-400 transition">Login</a>
+        <a href="/register" class="hover:text-green-400 transition">Register</a>
+        <a href="/terms" class="hover:text-green-400 transition">Terms</a>
+        <a href="/privacy" class="hover:text-green-400 transition">Privacy</a>
     </div>
 </nav>
 
-<section class="text-center py-20">
-    <h2 class="text-4xl font-bold mb-6">Secure Escrow Platform</h2>
-    <p class="text-gray-600 mb-8">Buy and sell safely with MERCX protection.</p>
-    <a href="/register" class="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700">
-        Get Started
+<!-- HERO SECTION -->
+<section class="bg-gradient-to-r from-black to-gray-800 text-white text-center py-24 px-6">
+    <h2 class="text-5xl font-bold mb-6">Secure Digital Escrow Platform</h2>
+    <p class="text-gray-300 text-lg mb-8 max-w-2xl mx-auto">
+        Buy and sell online with complete confidence. MERCX protects your money until both parties confirm satisfaction.
+    </p>
+    <div class="space-x-4">
+        <a href="/register" class="bg-green-600 px-8 py-3 rounded-lg text-white hover:bg-green-700 transition">
+            Get Started
+        </a>
+        <a href="/login" class="border border-green-500 px-8 py-3 rounded-lg hover:bg-green-600 hover:text-white transition">
+            Login
+        </a>
+    </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section class="py-20 bg-white text-center">
+    <h3 class="text-3xl font-bold mb-12">How It Works</h3>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-10 px-10">
+
+        <div class="p-6">
+            <div class="text-green-600 text-4xl mb-4">1️⃣</div>
+            <h4 class="font-bold text-xl mb-2">Create Transaction</h4>
+            <p class="text-gray-600">Buyer and seller agree and create an escrow transaction.</p>
+        </div>
+
+        <div class="p-6">
+            <div class="text-green-600 text-4xl mb-4">2️⃣</div>
+            <h4 class="font-bold text-xl mb-2">Funds Secured</h4>
+            <p class="text-gray-600">Money is held safely in MERCX secure account.</p>
+        </div>
+
+        <div class="p-6">
+            <div class="text-green-600 text-4xl mb-4">3️⃣</div>
+            <h4 class="font-bold text-xl mb-2">Release Payment</h4>
+            <p class="text-gray-600">Seller gets paid after buyer confirms delivery.</p>
+        </div>
+
+    </div>
+</section>
+
+<!-- FEATURES -->
+<section class="py-20 bg-gray-100">
+    <h3 class="text-3xl font-bold text-center mb-12">Why Choose MERCX?</h3>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-8 px-10">
+
+        <div class="bg-white p-8 rounded-xl shadow hover:shadow-xl transition">
+            <h4 class="font-bold text-xl mb-3 text-green-600">Secure Payments</h4>
+            <p class="text-gray-600">All transactions are encrypted and protected.</p>
+        </div>
+
+        <div class="bg-white p-8 rounded-xl shadow hover:shadow-xl transition">
+            <h4 class="font-bold text-xl mb-3 text-green-600">Fraud Monitoring</h4>
+            <p class="text-gray-600">Advanced fraud detection system protects users.</p>
+        </div>
+
+        <div class="bg-white p-8 rounded-xl shadow hover:shadow-xl transition">
+            <h4 class="font-bold text-xl mb-3 text-green-600">Fast Dispute Resolution</h4>
+            <p class="text-gray-600">Professional admin team handles disputes quickly.</p>
+        </div>
+
+    </div>
+</section>
+
+<!-- STATS -->
+<section class="bg-black text-white py-20 text-center">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-10">
+        <div>
+            <h4 class="text-4xl font-bold text-green-400">10K+</h4>
+            <p class="text-gray-400">Transactions Secured</p>
+        </div>
+        <div>
+            <h4 class="text-4xl font-bold text-green-400">5K+</h4>
+            <p class="text-gray-400">Happy Users</p>
+        </div>
+        <div>
+            <h4 class="text-4xl font-bold text-green-400">99%</h4>
+            <p class="text-gray-400">Success Rate</p>
+        </div>
+    </div>
+</section>
+
+<!-- CALL TO ACTION -->
+<section class="py-20 bg-green-600 text-white text-center">
+    <h3 class="text-3xl font-bold mb-6">Ready to Trade Safely?</h3>
+    <a href="/register" class="bg-white text-green-600 px-10 py-3 rounded-lg font-bold hover:bg-gray-200 transition">
+        Create Free Account
     </a>
 </section>
 
-<section class="grid grid-cols-1 md:grid-cols-3 gap-6 p-10">
-    <div class="bg-white p-6 rounded shadow">
-        <h3 class="font-bold text-xl mb-2">Secure Payments</h3>
-        <p>Funds are protected until both parties confirm.</p>
-    </div>
-    <div class="bg-white p-6 rounded shadow">
-        <h3 class="font-bold text-xl mb-2">Fraud Protection</h3>
-        <p>We monitor and secure all transactions.</p>
-    </div>
-    <div class="bg-white p-6 rounded shadow">
-        <h3 class="font-bold text-xl mb-2">Fast Resolution</h3>
-        <p>Disputes are resolved quickly by admin team.</p>
-    </div>
-</section>
-
-<footer class="bg-black text-white text-center p-4">
-    © 2026 MERCX. All rights reserved.
+<!-- FOOTER -->
+<footer class="bg-black text-gray-400 text-center p-6">
+    © 2026 MERCX Escrow. All rights reserved.
 </footer>
 
 </body>
-</html>
+    </html>
