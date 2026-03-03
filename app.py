@@ -17,20 +17,36 @@ app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "supersecretkey")
 app.config["SECURITY_PASSWORD_SALT"] = "mercx_salt"
 
-Talisman(app)
+# ✅ Proper CSP so Tailwind CDN works
+csp = {
+    "default-src": ["'self'"],
+    "script-src": [
+        "'self'",
+        "https://cdn.tailwindcss.com",
+        "'unsafe-inline'"
+    ],
+    "style-src": [
+        "'self'",
+        "'unsafe-inline'"
+    ],
+    "img-src": [
+        "'self'",
+        "data:"
+    ]
+}
+
+Talisman(app, content_security_policy=csp)
 
 # =========================
-# DATABASE CONFIG (FIXED)
+# DATABASE CONFIG
 # =========================
 
 database_url = os.environ.get("DATABASE_URL")
 
 if database_url:
-    # Render sometimes gives postgres://
     if database_url.startswith("postgres://"):
         database_url = database_url.replace("postgres://", "postgresql://", 1)
 
-    # Force SSL
     if "sslmode=" not in database_url:
         if "?" in database_url:
             database_url += "&sslmode=require"
@@ -67,6 +83,7 @@ class User(UserMixin, db.Model):
     password = db.Column(db.String(200), nullable=False)
     is_admin = db.Column(db.Boolean, default=False)
     otp_secret = db.Column(db.String(32), nullable=False, default=lambda: pyotp.random_base32())
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class Transaction(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -77,6 +94,7 @@ class Transaction(db.Model):
     buyer_paid = db.Column(db.Boolean, default=False)
     seller_confirmed = db.Column(db.Boolean, default=False)
     released = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class LoginActivity(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -97,12 +115,11 @@ def generate_reset_token(email):
 
 def confirm_reset_token(token, expiration=3600):
     try:
-        email = serializer.loads(
+        return serializer.loads(
             token,
             salt=app.config["SECURITY_PASSWORD_SALT"],
             max_age=expiration
         )
-        return email
     except Exception:
         return None
 
@@ -121,9 +138,13 @@ def register():
         username = request.form.get("username")
         email = request.form.get("email")
         password = request.form.get("password")
+        confirm_password = request.form.get("confirm_password")
 
         if not username or not email or not password:
             return render_template("register.html", error="All fields required")
+
+        if password != confirm_password:
+            return render_template("register.html", error="Passwords do not match")
 
         existing_user = User.query.filter(
             or_(User.username == username, User.email == email)
@@ -135,8 +156,7 @@ def register():
         new_user = User(
             username=username,
             email=email,
-            password=generate_password_hash(password),
-            otp_secret=pyotp.random_base32()
+            password=generate_password_hash(password)
         )
 
         db.session.add(new_user)
@@ -198,7 +218,6 @@ def verify_otp():
 
     return render_template("verify.html")
 
-# DASHBOARD
 @app.route("/dashboard")
 @login_required
 def dashboard():
@@ -211,42 +230,6 @@ def dashboard():
 
     return render_template("dashboard.html", user=current_user, transactions=transactions)
 
-# FORGOT PASSWORD
-@app.route("/forgot", methods=["GET", "POST"])
-def forgot():
-    if request.method == "POST":
-        email = request.form.get("email")
-        user = User.query.filter_by(email=email).first()
-
-        if user:
-            token = generate_reset_token(user.email)
-            reset_link = url_for("reset_password", token=token, _external=True)
-            print("RESET LINK:", reset_link)
-
-        return render_template("forgot.html", message="If email exists, reset link sent.")
-
-    return render_template("forgot.html")
-
-# RESET PASSWORD
-@app.route("/reset/<token>", methods=["GET", "POST"])
-def reset_password(token):
-    email = confirm_reset_token(token)
-
-    if not email:
-        return "Invalid or expired token"
-
-    if request.method == "POST":
-        new_password = request.form.get("password")
-        user = User.query.filter_by(email=email).first()
-
-        user.password = generate_password_hash(new_password)
-        db.session.commit()
-
-        return redirect(url_for("login"))
-
-    return render_template("reset.html")
-
-# LOGOUT
 @app.route("/logout")
 @login_required
 def logout():
@@ -265,8 +248,7 @@ with app.app_context():
             username="admin",
             email="admin@mercx.site",
             password=generate_password_hash("Mercury@001"),
-            is_admin=True,
-            otp_secret=pyotp.random_base32()
+            is_admin=True
         )
         db.session.add(admin_user)
         db.session.commit()
