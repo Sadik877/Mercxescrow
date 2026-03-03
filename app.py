@@ -1,12 +1,13 @@
 import os
 import pyotp
 from datetime import datetime
-from flask import Flask, render_template, redirect, url_for, request, session
+from flask import Flask, render_template, redirect, url_for, request, session, flash
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from itsdangerous import URLSafeTimedSerializer
 from flask_talisman import Talisman
+from sqlalchemy import or_
 
 # =========================
 # APP CONFIG
@@ -16,7 +17,7 @@ app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "supersecretkey")
 app.config["SECURITY_PASSWORD_SALT"] = "mercx_salt"
 
-Talisman(app)  # Security headers
+Talisman(app)
 
 # =========================
 # DATABASE CONFIG
@@ -55,12 +56,14 @@ serializer = URLSafeTimedSerializer(app.config["SECRET_KEY"])
 # =========================
 
 class User(UserMixin, db.Model):
+    __tablename__ = "user"
+
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(100), unique=True, nullable=False)
     email = db.Column(db.String(150), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
     is_admin = db.Column(db.Boolean, default=False)
-    otp_secret = db.Column(db.String(16), default=pyotp.random_base32())
+    otp_secret = db.Column(db.String(32), nullable=False, default=lambda: pyotp.random_base32())
 
 class Transaction(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -96,7 +99,7 @@ def confirm_reset_token(token, expiration=3600):
             salt=app.config["SECURITY_PASSWORD_SALT"],
             max_age=expiration
         )
-    except:
+    except Exception:
         return None
     return email
 
@@ -116,32 +119,43 @@ def register():
         email = request.form.get("email")
         password = request.form.get("password")
 
-        if User.query.filter((User.username == username) | (User.email == email)).first():
-            return render_template("register.html", error="User exists")
+        if not username or not email or not password:
+            return render_template("register.html", error="All fields required")
+
+        existing_user = User.query.filter(
+            or_(User.username == username, User.email == email)
+        ).first()
+
+        if existing_user:
+            return render_template("register.html", error="User already exists")
 
         new_user = User(
             username=username,
             email=email,
-            password=generate_password_hash(password)
+            password=generate_password_hash(password),
+            otp_secret=pyotp.random_base32()
         )
 
         db.session.add(new_user)
         db.session.commit()
+
         return redirect(url_for("login"))
 
     return render_template("register.html")
 
-# LOGIN WITH OTP STEP 1
+# LOGIN STEP 1
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
         username = request.form.get("username")
         password = request.form.get("password")
+        remember = True if request.form.get("remember") else False
 
         user = User.query.filter_by(username=username).first()
 
         if user and check_password_hash(user.password, password):
             session["pre_2fa_user"] = user.id
+            session["remember_me"] = remember
             return redirect(url_for("verify_otp"))
 
         return render_template("login.html", error="Invalid credentials")
@@ -155,17 +169,19 @@ def verify_otp():
     if not user_id:
         return redirect(url_for("login"))
 
-    user = User.query.get(user_id)
+    user = db.session.get(User, user_id)
     totp = pyotp.TOTP(user.otp_secret)
 
     if request.method == "POST":
         otp = request.form.get("otp")
 
         if totp.verify(otp):
-            login_user(user)
-            session.pop("pre_2fa_user", None)
+            remember = session.get("remember_me", False)
+            login_user(user, remember=remember)
 
-            # Save login activity
+            session.pop("pre_2fa_user", None)
+            session.pop("remember_me", None)
+
             activity = LoginActivity(
                 username=user.username,
                 ip_address=request.remote_addr
@@ -184,13 +200,15 @@ def verify_otp():
 @login_required
 def dashboard():
     transactions = Transaction.query.filter(
-        (Transaction.buyer == current_user.username) |
-        (Transaction.seller == current_user.username)
+        or_(
+            Transaction.buyer == current_user.username,
+            Transaction.seller == current_user.username
+        )
     ).all()
 
     return render_template("dashboard.html", user=current_user, transactions=transactions)
 
-# PASSWORD RESET REQUEST
+# FORGOT PASSWORD
 @app.route("/forgot", methods=["GET", "POST"])
 def forgot():
     if request.method == "POST":
@@ -200,7 +218,7 @@ def forgot():
         if user:
             token = generate_reset_token(user.email)
             reset_link = url_for("reset_password", token=token, _external=True)
-            print("RESET LINK:", reset_link)  # for testing
+            print("RESET LINK:", reset_link)
 
         return render_template("forgot.html", message="If email exists, reset link sent.")
 
@@ -216,8 +234,10 @@ def reset_password(token):
     if request.method == "POST":
         new_password = request.form.get("password")
         user = User.query.filter_by(email=email).first()
+
         user.password = generate_password_hash(new_password)
         db.session.commit()
+
         return redirect(url_for("login"))
 
     return render_template("reset.html")
@@ -241,10 +261,13 @@ with app.app_context():
             username="admin",
             email="admin@mercx.site",
             password=generate_password_hash("Mercury@001"),
-            is_admin=True
+            is_admin=True,
+            otp_secret=pyotp.random_base32()
         )
         db.session.add(admin_user)
         db.session.commit()
+
+# =========================
 
 if __name__ == "__main__":
     app.run(debug=True)
