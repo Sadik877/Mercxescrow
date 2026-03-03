@@ -4,81 +4,97 @@
     <title>Dashboard - MERCX</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-100">
+<body class="bg-gray-100 min-h-screen">
 
-<div class="max-w-5xl mx-auto mt-10">
+<!-- NAVBAR -->
+<nav class="bg-black text-white p-4 flex justify-between items-center">
+    <div class="text-xl font-bold">MERCX</div>
+    <div class="space-x-4">
+        <a href="/create" class="bg-green-600 px-4 py-2 rounded hover:bg-green-700">New Transaction</a>
+        <a href="/logout" class="bg-red-600 px-4 py-2 rounded hover:bg-red-700">Logout</a>
+    </div>
+</nav>
 
-    <!-- Header -->
-    <div class="bg-white shadow-lg rounded-xl p-6 flex justify-between items-center">
-        <div>
-            <h1 class="text-2xl font-bold">Welcome, {{ user.username }} 👑</h1>
-            <p class="text-gray-500">Your MERCX Dashboard</p>
+<!-- CONTENT -->
+<div class="max-w-6xl mx-auto mt-8 px-4">
+
+    <!-- USER INFO CARD -->
+    <div class="bg-white rounded-2xl shadow p-6 mb-8">
+        <h2 class="text-2xl font-bold mb-2">Welcome, {{ user.username }}</h2>
+        <p class="text-gray-600">
+            Role:
+            {% if user.is_admin %}
+                <span class="text-purple-600 font-semibold">Administrator</span>
+            {% else %}
+                <span class="text-blue-600 font-semibold">User</span>
+            {% endif %}
+        </p>
+    </div>
+
+    <!-- TRANSACTIONS -->
+    <h3 class="text-xl font-bold mb-4">Your Transactions</h3>
+
+    {% if transactions %}
+        <div class="grid gap-6">
+            {% for tx in transactions %}
+            <div class="bg-white rounded-2xl shadow p-6 flex flex-col md:flex-row justify-between items-center">
+
+                <!-- INFO -->
+                <div>
+                    <p class="font-bold text-lg">Transaction #{{ tx.id }}</p>
+                    <p class="text-gray-600">Buyer: {{ tx.buyer }}</p>
+                    <p class="text-gray-600">Seller: {{ tx.seller }}</p>
+                    <p class="text-gray-800 font-semibold mt-1">₦{{ tx.amount }}</p>
+
+                    <!-- STATUS BADGE -->
+                    <div class="mt-2">
+                        {% if tx.status == "Created" %}
+                            <span class="bg-yellow-200 text-yellow-800 px-3 py-1 rounded-full text-sm">Created</span>
+                        {% elif tx.status == "Paid" %}
+                            <span class="bg-blue-200 text-blue-800 px-3 py-1 rounded-full text-sm">Paid</span>
+                        {% elif tx.status == "Delivered" %}
+                            <span class="bg-purple-200 text-purple-800 px-3 py-1 rounded-full text-sm">Delivered</span>
+                        {% elif tx.status == "Released" %}
+                            <span class="bg-green-200 text-green-800 px-3 py-1 rounded-full text-sm">Released</span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- ACTION BUTTONS -->
+                <div class="mt-4 md:mt-0 space-x-2">
+
+                    {% if tx.buyer == user.username and not tx.buyer_paid %}
+                        <a href="/pay/{{ tx.id }}"
+                           class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+                           Mark as Paid
+                        </a>
+                    {% endif %}
+
+                    {% if tx.seller == user.username and tx.buyer_paid and not tx.seller_confirmed %}
+                        <a href="/confirm/{{ tx.id }}"
+                           class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700">
+                           Confirm Delivery
+                        </a>
+                    {% endif %}
+
+                    {% if user.is_admin and tx.seller_confirmed and not tx.released %}
+                        <a href="/release/{{ tx.id }}"
+                           class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
+                           Release Funds
+                        </a>
+                    {% endif %}
+
+                </div>
+            </div>
+            {% endfor %}
         </div>
-        <a href="/logout" class="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600">
-            Logout
-        </a>
-    </div>
-
-    <!-- Stats -->
-    <div class="grid grid-cols-2 gap-6 mt-6">
-        <div class="bg-white p-6 rounded-xl shadow">
-            <h2 class="text-gray-500">Total Transactions</h2>
-            <p class="text-3xl font-bold">{{ transactions|length }}</p>
+    {% else %}
+        <div class="bg-white p-6 rounded-2xl shadow text-center text-gray-500">
+            No transactions yet.
         </div>
-
-        <div class="bg-white p-6 rounded-xl shadow">
-            <h2 class="text-gray-500">Total Amount</h2>
-            <p class="text-3xl font-bold text-green-600">₦{{ total_amount }}</p>
-        </div>
-    </div>
-
-    <!-- Create Button -->
-    <div class="mt-6">
-        <a href="/create_transaction" 
-           class="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700">
-           ➕ Create Transaction
-        </a>
-    </div>
-
-    <!-- Transactions List -->
-    <div class="bg-white shadow-lg rounded-xl p-6 mt-6">
-        <h2 class="text-xl font-bold mb-4">Your Transactions</h2>
-
-        {% if transactions %}
-            <table class="w-full border-collapse">
-                <thead>
-                    <tr class="bg-gray-200">
-                        <th class="p-2 text-left">Seller</th>
-                        <th class="p-2 text-left">Amount</th>
-                        <th class="p-2 text-left">Status</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for tx in transactions %}
-                    <tr class="border-b">
-                        <td class="p-2">{{ tx.seller }}</td>
-                        <td class="p-2">₦{{ tx.amount }}</td>
-                        <td class="p-2">
-                            <span class="px-3 py-1 rounded-full 
-                            {% if tx.status == 'Pending' %}
-                                bg-yellow-200 text-yellow-800
-                            {% else %}
-                                bg-green-200 text-green-800
-                            {% endif %}">
-                                {{ tx.status }}
-                            </span>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            <tbody id="transaction-body">
-</tbody>
-        {% else %}
-            <p class="text-gray-500">No transactions yet.</p>
-        {% endif %}
-    </div>
+    {% endif %}
 
 </div>
 
 </body>
-      </html>
+</html>
