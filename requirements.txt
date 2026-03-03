@@ -1,6 +1,5 @@
+psycopg[binary]
+gunicorn
 Flask
 Flask-SQLAlchemy
 Flask-Login
-Flask-Mail
-gunicorn
-psycopg[binary]
