@@ -1,44 +1,47 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>MercX Escrow</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <style>
-        body{
-            font-family: Arial;
-            margin:0;
-            background:#f4f6f9;
-            text-align:center;
-        }
-        header{
-            background:#0a1f44;
-            color:white;
-            padding:20px;
-        }
-        .btn{
-            padding:10px 20px;
-            background:#1e88e5;
-            color:white;
-            text-decoration:none;
-            border-radius:5px;
-        }
-        section{
-            padding:40px;
-        }
-    </style>
+    <title>MERCX Escrow</title>
+    <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
+<body class="bg-gray-100">
 
-<header>
-    <h1>MercX Escrow</h1>
-    <p>Secure • Transparent • Trusted</p>
-</header>
+<nav class="bg-black p-4 text-white flex justify-between">
+    <h1 class="font-bold text-xl">MERCX</h1>
+    <div>
+        <a href="/login" class="mr-4 hover:text-green-400">Login</a>
+        <a href="/register" class="mr-4 hover:text-green-400">Register</a>
+        <a href="/terms" class="mr-4">Terms</a>
+        <a href="/privacy">Privacy</a>
+    </div>
+</nav>
 
-<section>
-    <h2>Protect Your Online Transactions</h2>
-    <p>MercX holds funds securely until both buyer and seller confirm.</p>
-    <a href="/register" class="btn">Get Started</a>
+<section class="text-center py-20">
+    <h2 class="text-4xl font-bold mb-6">Secure Escrow Platform</h2>
+    <p class="text-gray-600 mb-8">Buy and sell safely with MERCX protection.</p>
+    <a href="/register" class="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700">
+        Get Started
+    </a>
 </section>
 
+<section class="grid grid-cols-1 md:grid-cols-3 gap-6 p-10">
+    <div class="bg-white p-6 rounded shadow">
+        <h3 class="font-bold text-xl mb-2">Secure Payments</h3>
+        <p>Funds are protected until both parties confirm.</p>
+    </div>
+    <div class="bg-white p-6 rounded shadow">
+        <h3 class="font-bold text-xl mb-2">Fraud Protection</h3>
+        <p>We monitor and secure all transactions.</p>
+    </div>
+    <div class="bg-white p-6 rounded shadow">
+        <h3 class="font-bold text-xl mb-2">Fast Resolution</h3>
+        <p>Disputes are resolved quickly by admin team.</p>
+    </div>
+</section>
+
+<footer class="bg-black text-white text-center p-4">
+    © 2026 MERCX. All rights reserved.
+</footer>
+
 </body>
-                                       </html>
+</html>
